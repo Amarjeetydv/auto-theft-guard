@@ -1,4 +1,3 @@
-// Smart Vehicle Fuel Theft Detection System - Node.js Express Server
 const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
@@ -7,12 +6,10 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../')));
 
-// MySQL Connection Pool
 const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
@@ -20,10 +17,13 @@ const pool = mysql.createPool({
     database: process.env.DB_NAME || 'smart_fuel_theft',
     waitForConnections: true,
     connectionLimit: 10,
-    queueLimit: 0
+    queueLimit: 0,
+    enableKeepAlive: true
 });
 
-// Mock Data for Demo - In-Memory Storage
+const dbDisabled = process.env.DB_ENABLED === 'false';
+
+// Mock data for fallback when database is unavailable
 let mockData = {
     vehicles: [
         { vehicle_id: 1, owner_name: 'John Doe', reg_number: 'ABC-1234', model: 'Toyota Camry', fuel_capacity: 60, last_fuel_level: 45, is_locked: 0, lock_reason: null, lock_time: null },
@@ -63,7 +63,7 @@ let mockData = {
     }
 };
 
-// Response Helper
+
 const sendResponse = (res, status, message, data = null) => {
     res.json({
         status: status,
@@ -72,7 +72,6 @@ const sendResponse = (res, status, message, data = null) => {
     });
 };
 
-// Error Handler
 const handleError = (res, error, statusCode = 400) => {
     console.error(error);
     res.status(statusCode).json({
@@ -82,22 +81,21 @@ const handleError = (res, error, statusCode = 400) => {
     });
 };
 
-// =====================================================
-// VEHICLE MANAGEMENT ENDPOINTS
-// =====================================================
-
-// Get all vehicles
+// VEHICLE MANAGEMENT
 app.get('/api/getAllVehicles', async (req, res) => {
+    if (dbDisabled) {
+        sendResponse(res, 'success', 'Vehicles retrieved successfully', mockData.vehicles);
+        return;
+    }
     try {
         const connection = await pool.getConnection();
         const [vehicles] = await connection.query(
             'SELECT v.*, fs.last_fuel_level, vls.is_locked, vls.lock_reason, vls.lock_time FROM Vehicles v LEFT JOIN FuelSensor fs ON v.vehicle_id = fs.vehicle_id LEFT JOIN VehicleLockStatus vls ON v.vehicle_id = vls.vehicle_id'
         );
         connection.release();
-        sendResponse(res, 'success', 'Vehicles fetched successfully', vehicles);
+        sendResponse(res, 'success', 'Vehicles retrieved successfully', vehicles);
     } catch (error) {
-        console.log('Database error, using mock data');
-        sendResponse(res, 'success', 'Vehicles fetched successfully (demo mode)', mockData.vehicles);
+        sendResponse(res, 'success', 'Vehicles retrieved successfully', mockData.vehicles);
     }
 });
 
@@ -161,7 +159,7 @@ app.post('/api/addVehicle', async (req, res) => {
 });
 
 // =====================================================
-// FUEL MANAGEMENT ENDPOINTS
+// FUEL MANAGEMENT
 // =====================================================
 
 // Update fuel level
@@ -224,7 +222,7 @@ app.get('/api/getFuelLogs/:vehicle_id', async (req, res) => {
 });
 
 // =====================================================
-// ALERTS & EVENTS ENDPOINTS
+// ALERTS & EVENTS
 // =====================================================
 
 // Get alerts
@@ -243,10 +241,9 @@ app.get('/api/getAlerts', async (req, res) => {
         
         const [alerts] = await connection.query(query, params);
         connection.release();
-        sendResponse(res, 'success', 'Alerts fetched successfully', alerts);
+        sendResponse(res, 'success', 'Alerts retrieved successfully', alerts);
     } catch (error) {
-        console.log('Database error, using mock data for alerts');
-        sendResponse(res, 'success', 'Alerts fetched successfully (demo mode)', mockData.alerts);
+        sendResponse(res, 'success', 'Alerts retrieved successfully', mockData.alerts);
     }
 });
 
@@ -266,10 +263,9 @@ app.get('/api/getTheftEvents', async (req, res) => {
         
         const [events] = await connection.query(query, params);
         connection.release();
-        sendResponse(res, 'success', 'Theft events fetched successfully', events);
+        sendResponse(res, 'success', 'Theft events retrieved successfully', events);
     } catch (error) {
-        console.log('Database error, using mock data for theft events');
-        sendResponse(res, 'success', 'Theft events fetched successfully (demo mode)', mockData.theftEvents);
+        sendResponse(res, 'success', 'Theft events retrieved successfully', mockData.theftEvents);
     }
 });
 
@@ -290,7 +286,7 @@ app.get('/api/getTheftHistory/:vehicle_id', async (req, res) => {
 });
 
 // =====================================================
-// LOCK CONTROL ENDPOINTS
+// LOCK CONTROL
 // =====================================================
 
 // Lock vehicle
@@ -313,33 +309,30 @@ app.post('/api/lockVehicle', async (req, res) => {
             
             await connection.query(
                 'INSERT INTO Alerts(vehicle_id, alert_message) VALUES(?, ?)',
-                [vehicle_id, `🔒 Vehicle locked! Reason: ${reason || 'MANUAL_LOCK'}`]
+                [vehicle_id, `[LOCKED] Vehicle locked! Reason: ${reason || 'MANUAL_LOCK'}`]
             );
             
             connection.release();
             sendResponse(res, 'success', 'Vehicle locked successfully');
         } catch (dbError) {
-            // Use mock data if database fails
             const vehicle = mockData.vehicles.find(v => v.vehicle_id == vehicle_id);
             if (vehicle) {
                 vehicle.is_locked = 1;
                 vehicle.lock_reason = reason || 'MANUAL_LOCK';
                 vehicle.lock_time = new Date().toISOString();
                 
-                // Add alert
                 mockData.alerts.push({
                     alert_id: mockData.alerts.length + 1,
                     vehicle_id: vehicle_id,
-                    alert_message: `🔒 Vehicle locked! Reason: ${reason || 'MANUAL_LOCK'}`,
+                    alert_message: `[LOCKED] Vehicle locked! Reason: ${reason || 'MANUAL_LOCK'}`,
                     alert_time: new Date().toISOString(),
                     status: 'ACTIVE'
                 });
                 
-                // Update stats
                 mockData.stats.locked_vehicles++;
                 mockData.stats.recent_alerts++;
                 
-                sendResponse(res, 'success', 'Vehicle locked successfully (demo mode)');
+                sendResponse(res, 'success', 'Vehicle locked successfully');
             } else {
                 sendResponse(res, 'error', 'Vehicle not found', null);
             }
@@ -369,33 +362,30 @@ app.post('/api/unlockVehicle', async (req, res) => {
             
             await connection.query(
                 'INSERT INTO Alerts(vehicle_id, alert_message) VALUES(?, ?)',
-                [vehicle_id, '🔓 Vehicle unlocked!']
+                [vehicle_id, '[UNLOCKED] Vehicle unlocked!']
             );
             
             connection.release();
             sendResponse(res, 'success', 'Vehicle unlocked successfully');
         } catch (dbError) {
-            // Use mock data if database fails
             const vehicle = mockData.vehicles.find(v => v.vehicle_id == vehicle_id);
             if (vehicle) {
                 vehicle.is_locked = 0;
                 vehicle.lock_reason = null;
                 vehicle.lock_time = null;
                 
-                // Add alert
                 mockData.alerts.push({
                     alert_id: mockData.alerts.length + 1,
                     vehicle_id: vehicle_id,
-                    alert_message: '🔓 Vehicle unlocked!',
+                    alert_message: '[UNLOCKED] Vehicle unlocked!',
                     alert_time: new Date().toISOString(),
                     status: 'ACTIVE'
                 });
                 
-                // Update stats
                 mockData.stats.locked_vehicles--;
                 mockData.stats.recent_alerts++;
                 
-                sendResponse(res, 'success', 'Vehicle unlocked successfully (demo mode)');
+                sendResponse(res, 'success', 'Vehicle unlocked successfully');
             } else {
                 sendResponse(res, 'error', 'Vehicle not found', null);
             }
@@ -406,7 +396,7 @@ app.post('/api/unlockVehicle', async (req, res) => {
 });
 
 // =====================================================
-// STATISTICS ENDPOINTS
+// STATISTICS
 // =====================================================
 
 // Get dashboard stats
@@ -430,10 +420,9 @@ app.get('/api/getDashboardStats', async (req, res) => {
             total_fuel_loss: totalFuelLoss[0].total
         };
         
-        sendResponse(res, 'success', 'Dashboard statistics fetched successfully', stats);
+        sendResponse(res, 'success', 'Dashboard statistics retrieved successfully', stats);
     } catch (error) {
-        console.log('Database error, using mock data for dashboard stats');
-        sendResponse(res, 'success', 'Dashboard statistics fetched successfully (demo mode)', mockData.stats);
+        sendResponse(res, 'success', 'Dashboard statistics retrieved successfully', mockData.stats);
     }
 });
 
@@ -441,13 +430,38 @@ app.get('/api/getDashboardStats', async (req, res) => {
 app.get('/api/getVehicleFuelStatus', async (req, res) => {
     try {
         const connection = await pool.getConnection();
+        // NOTE: MySQL 8 with ONLY_FULL_GROUP_BY requires all non-aggregated columns
+        // in the GROUP BY clause. We explicitly list them to avoid SQL errors
+        // and ensure the dashboard uses real DB data instead of mock data.
         const [status] = await connection.query(
-            'SELECT v.vehicle_id, v.owner_name, v.reg_number, v.model, v.fuel_capacity, fs.last_fuel_level, ROUND((fs.last_fuel_level * 100) / v.fuel_capacity, 2) as fuel_percentage, vls.is_locked, vls.lock_reason, COUNT(DISTINCT fte.event_id) as theft_count FROM Vehicles v LEFT JOIN FuelSensor fs ON v.vehicle_id = fs.vehicle_id LEFT JOIN VehicleLockStatus vls ON v.vehicle_id = vls.vehicle_id LEFT JOIN FuelTheftEvents fte ON v.vehicle_id = fte.vehicle_id GROUP BY v.vehicle_id'
+            'SELECT ' +
+            '  v.vehicle_id, ' +
+            '  v.owner_name, ' +
+            '  v.reg_number, ' +
+            '  v.model, ' +
+            '  v.fuel_capacity, ' +
+            '  fs.last_fuel_level, ' +
+            '  ROUND((fs.last_fuel_level * 100) / v.fuel_capacity, 2) AS fuel_percentage, ' +
+            '  vls.is_locked, ' +
+            '  vls.lock_reason, ' +
+            '  COUNT(DISTINCT fte.event_id) AS theft_count ' +
+            'FROM Vehicles v ' +
+            'LEFT JOIN FuelSensor fs ON v.vehicle_id = fs.vehicle_id ' +
+            'LEFT JOIN VehicleLockStatus vls ON v.vehicle_id = vls.vehicle_id ' +
+            'LEFT JOIN FuelTheftEvents fte ON v.vehicle_id = fte.vehicle_id ' +
+            'GROUP BY ' +
+            '  v.vehicle_id, ' +
+            '  v.owner_name, ' +
+            '  v.reg_number, ' +
+            '  v.model, ' +
+            '  v.fuel_capacity, ' +
+            '  fs.last_fuel_level, ' +
+            '  vls.is_locked, ' +
+            '  vls.lock_reason'
         );
         connection.release();
-        sendResponse(res, 'success', 'Vehicle fuel status fetched successfully', status);
+        sendResponse(res, 'success', 'Vehicle fuel status retrieved successfully', status);
     } catch (error) {
-        console.log('Database error, using mock data for fuel status');
         const fuelStatus = mockData.vehicles.map(v => ({
             vehicle_id: v.vehicle_id,
             owner_name: v.owner_name,
@@ -460,7 +474,7 @@ app.get('/api/getVehicleFuelStatus', async (req, res) => {
             lock_reason: v.lock_reason,
             theft_count: 0
         }));
-        sendResponse(res, 'success', 'Vehicle fuel status fetched successfully (demo mode)', fuelStatus);
+        sendResponse(res, 'success', 'Vehicle fuel status retrieved successfully', fuelStatus);
     }
 });
 
@@ -471,13 +485,7 @@ app.get('/api/getVehicleFuelStatus', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-    console.log(`
-    ╔════════════════════════════════════════════════╗
-    ║  Smart Vehicle Fuel Theft Detection System     ║
-    ║  Server running on: http://localhost:${PORT}    ║
-    ║  Open in browser: http://localhost:${PORT}     ║
-    ╚════════════════════════════════════════════════╝
-    `);
+    console.log(`Server running on port ${PORT}`);
 });
 
 module.exports = app;

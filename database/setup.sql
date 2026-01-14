@@ -133,9 +133,9 @@ BEGIN
         INSERT INTO Alerts(vehicle_id, alert_message)
         VALUES(
             OLD.vehicle_id,
-            CONCAT('🚨 ALERT: Fuel theft detected! Loss: ',
+            CONCAT('[ALERT] Fuel theft detected! Loss: ',
             OLD.last_fuel_level - NEW.last_fuel_level, ' liters. Previous: ',
-            OLD.last_fuel_level, 'L → Current: ', NEW.last_fuel_level, 'L')
+            OLD.last_fuel_level, 'L -> Current: ', NEW.last_fuel_level, 'L')
         );
 
         UPDATE VehicleLockStatus
@@ -257,7 +257,7 @@ BEGIN
     WHERE vehicle_id = vehid;
     
     INSERT INTO Alerts(vehicle_id, alert_message)
-    VALUES(vehid, CONCAT('🔒 Vehicle locked! Reason: ', reason));
+    VALUES(vehid, CONCAT('[LOCKED] Vehicle locked! Reason: ', reason));
 END $$
 
 DELIMITER ;
@@ -276,7 +276,7 @@ BEGIN
     WHERE vehicle_id = vehid;
     
     INSERT INTO Alerts(vehicle_id, alert_message)
-    VALUES(vehid, '🔓 Vehicle unlocked!');
+    VALUES(vehid, '[UNLOCKED] Vehicle unlocked!');
 END $$
 
 DELIMITER ;
@@ -310,7 +310,7 @@ BEGIN
 
         IF lvl < (cap * 0.2) THEN
             INSERT INTO Alerts(vehicle_id, alert_message)
-            VALUES(v_id, CONCAT('⚠️ Warning: Fuel level critically low! Current: ', lvl, 'L of ', cap, 'L'));
+            VALUES(v_id, CONCAT('[WARNING] Fuel level critically low! Current: ', lvl, 'L of ', cap, 'L'));
         END IF;
     END LOOP;
 

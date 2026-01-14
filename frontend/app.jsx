@@ -1,4 +1,3 @@
-// Smart Vehicle Fuel Theft Detection System - React Component
 class SmartFuelTheftApp extends React.Component {
     constructor(props) {
         super(props);
@@ -23,7 +22,6 @@ class SmartFuelTheftApp extends React.Component {
     
     componentDidMount() {
         this.loadDashboard();
-        // Refresh every 5 seconds
         setInterval(() => {
             if (this.state.activeTab === 'dashboard') {
                 this.loadDashboard();
@@ -40,7 +38,6 @@ class SmartFuelTheftApp extends React.Component {
             fetch(`${this.apiBase}/getAllVehicles`).then(r => r.json()),
             fetch(`${this.apiBase}/getTheftEvents`).then(r => r.json())
         ]).then(([stats, status, alerts, vehicles, theft]) => {
-            // Use fuel status vehicles which have all the needed fields
             const vehiclesData = status.data && status.data.length > 0 ? status.data : vehicles.data || [];
             
             this.setState({
@@ -163,49 +160,46 @@ class SmartFuelTheftApp extends React.Component {
         
         return (
             <div className="app-container">
-                {/* Header */}
                 <nav className="navbar navbar-dark bg-dark shadow">
                     <div className="container-fluid">
-                        <span className="navbar-brand">🚗 Smart Vehicle Fuel Theft Detection</span>
+                        <span className="navbar-brand">Smart Vehicle Fuel Theft Detection</span>
                         <div className="text-white">
                             <small>Real-time Fuel Monitoring & Security</small>
                         </div>
                     </div>
                 </nav>
                 
-                {/* Navigation Tabs */}
                 <div className="nav-tabs-container bg-light border-bottom">
                     <div className="container-fluid">
                         <ul className="nav nav-tabs" role="tablist">
                             <li className="nav-item">
                                 <a className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} 
                                    onClick={() => this.setState({ activeTab: 'dashboard' })}>
-                                    📊 Dashboard
+                                    Dashboard
                                 </a>
                             </li>
                             <li className="nav-item">
                                 <a className={`nav-link ${activeTab === 'vehicles' ? 'active' : ''}`} 
                                    onClick={() => this.setState({ activeTab: 'vehicles' })}>
-                                    🚗 Vehicles
+                                    Vehicles
                                 </a>
                             </li>
                             <li className="nav-item">
                                 <a className={`nav-link ${activeTab === 'alerts' ? 'active' : ''}`} 
                                    onClick={() => this.setState({ activeTab: 'alerts' })}>
-                                    🚨 Alerts
+                                    Alerts
                                 </a>
                             </li>
                             <li className="nav-item">
                                 <a className={`nav-link ${activeTab === 'theft' ? 'active' : ''}`} 
                                    onClick={() => this.setState({ activeTab: 'theft' })}>
-                                    ⚠️ Theft Events
+                                    Theft Events
                                 </a>
                             </li>
                         </ul>
                     </div>
                 </div>
                 
-                {/* Main Content */}
                 <div className="container-fluid">
                     {loading && <div className="alert alert-info">Loading...</div>}
                     
@@ -215,7 +209,6 @@ class SmartFuelTheftApp extends React.Component {
                     {activeTab === 'theft' && this.renderTheftEvents()}
                 </div>
                 
-                {/* Modals */}
                 {this.renderModals()}
             </div>
         );
@@ -285,7 +278,9 @@ class SmartFuelTheftApp extends React.Component {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {vehicleFuelStatus.map(v => (
+                                            {vehicleFuelStatus.map(v => {
+                                                const fuelPct = Number(v.fuel_percentage ?? 0);
+                                                return (
                                                 <tr key={v.vehicle_id}>
                                                     <td><strong>{v.owner_name}</strong></td>
                                                     <td><span className="badge bg-info">{v.reg_number}</span></td>
@@ -298,8 +293,8 @@ class SmartFuelTheftApp extends React.Component {
                                                                 <div 
                                                                     className="progress-bar bg-success d-flex align-items-center justify-content-center" 
                                                                     role="progressbar" 
-                                                                    style={{ width: Math.max(v.fuel_percentage, 15) + '%', fontSize: '12px', fontWeight: 'bold' }}>
-                                                                    {v.fuel_percentage.toFixed(1)}%
+                                                                    style={{ width: Math.max(fuelPct, 15) + '%', fontSize: '12px', fontWeight: 'bold' }}>
+                                                                    {fuelPct.toFixed(1)}%
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -312,7 +307,8 @@ class SmartFuelTheftApp extends React.Component {
                                                     </td>
                                                     <td><span className="badge bg-warning">{v.theft_count}</span></td>
                                                 </tr>
-                                            ))}
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -506,7 +502,7 @@ class SmartFuelTheftApp extends React.Component {
                         <div className="modal-dialog">
                             <div className="modal-content">
                                 <div className="modal-header bg-dark text-white">
-                                    <h5 className="modal-title">➕ Add New Vehicle</h5>
+                                    <h5 className="modal-title">Add New Vehicle</h5>
                                     <button type="button" className="btn-close btn-close-white" 
                                             onClick={() => this.setState({ showAddVehicleModal: false })}></button>
                                 </div>
@@ -552,7 +548,7 @@ class SmartFuelTheftApp extends React.Component {
                         <div className="modal-dialog">
                             <div className="modal-content">
                                 <div className="modal-header bg-dark text-white">
-                                    <h5 className="modal-title">⛽ Update Fuel Level</h5>
+                                    <h5 className="modal-title">Update Fuel Level</h5>
                                     <button type="button" className="btn-close btn-close-white" 
                                             onClick={() => this.setState({ showFuelModal: false })}></button>
                                 </div>
@@ -577,7 +573,7 @@ class SmartFuelTheftApp extends React.Component {
                                                onChange={e => this.setState({ fuelUpdate: {...fuelUpdate, fuel_level: e.target.value} })} />
                                     </div>
                                     <div className="alert alert-warning">
-                                        <small><strong>⚠️ Note:</strong> If fuel level suddenly drops, the system will automatically detect theft and lock the vehicle!</small>
+                                        <small><strong>Note:</strong> If fuel level suddenly drops, the system will automatically detect theft and lock the vehicle.</small>
                                     </div>
                                 </div>
                                 <div className="modal-footer">
@@ -594,5 +590,4 @@ class SmartFuelTheftApp extends React.Component {
     }
 }
 
-// Render the app
 ReactDOM.render(<SmartFuelTheftApp />, document.getElementById('app'));
